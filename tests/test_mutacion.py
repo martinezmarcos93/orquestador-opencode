@@ -99,6 +99,27 @@ class TestEvaluar(unittest.TestCase):
         r = m.evaluar(self._proyecto(TEST_FUERTE), ["calc.py"], ["false"])
         self.assertIn("error", r)
 
+    def test_timeout_termina_descendientes_del_oraculo_de_mutacion(self):
+        import shlex
+        import time
+        import sys
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "sobrevivio.txt"
+            child = (
+                "import signal,time,pathlib; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "time.sleep(0.5); pathlib.Path(" + repr(str(marker)) + ").write_text('vivo')"
+            )
+            parent = (
+                "import signal,subprocess,sys,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "subprocess.Popen([sys.executable, '-c', " + repr(child) + "]); time.sleep(10)"
+            )
+            comando = shlex.quote(sys.executable) + " -c " + shlex.quote(parent)
+            self.assertFalse(m._correr([comando], root, timeout=0.1, gracia_s=0.1))
+            time.sleep(0.6)
+            self.assertFalse(marker.exists(), "un descendiente de mutación sobrevivió al timeout")
+
     def test_respeta_el_maximo(self):
         r = m.evaluar(self._proyecto(TEST_FUERTE), ["calc.py"], ["python3 -B -m unittest -q test_calc"], maximo=3)
         self.assertEqual(r["total"], 3)

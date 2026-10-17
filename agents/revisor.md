@@ -22,11 +22,13 @@ Una línea: APTO o CON_OBSERVACIONES.
 
 ## Hallazgos
 Una línea por hallazgo, con esta forma:
-- [ALTA|MEDIA|BAJA] archivo:línea — qué pasa y por qué importa (una frase). Evidencia: lo que viste en el diff.
+- [ALTA] archivo:línea — qué pasa y por qué importa (una frase). Evidencia: fragmento o comportamiento concreto observado en el diff.
+- [MEDIA] archivo:línea — qué pasa y por qué importa (una frase). Evidencia: fragmento o comportamiento concreto observado en el diff.
+- [BAJA] archivo:línea — qué pasa y por qué importa (una frase). Evidencia: fragmento o comportamiento concreto observado en el diff.
 
 Qué buscar, de mayor a menor gravedad:
 1. ALTA: el diff cambia comportamiento de producción cuando el encargo no lo pedía; tests que contradicen su propio cálculo o que aseveran algo falso; credenciales o datos sensibles; tests que no verifican nada (sin asserts, asserts triviales).
 2. MEDIA: tests que no distinguen un caso del borde contiguo; casos importantes sin cubrir; código duplicado o muerto agregado.
 3. BAJA: estilo, nombres, comentarios.
 
-Reglas: citá solo lo que ves en el diff, no inventes. Si no encontrás nada, escribí `- ninguno` bajo Hallazgos. No elogies ni resumas el diff. Un hallazgo sin evidencia concreta no se reporta.
+Reglas: citá solo lo que ves en el diff, no inventes. Cada hallazgo lleva exactamente UNA severidad: `[ALTA]`, `[MEDIA]` o `[BAJA]`; nunca escribas `[ALTA|MEDIA|BAJA]` como si fuera una etiqueta literal. Si no encontrás nada, escribí `- ninguno` bajo Hallazgos. No elogies ni resumas el diff. Un hallazgo sin evidencia concreta no se reporta.

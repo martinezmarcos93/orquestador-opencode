@@ -1,0 +1,473 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/martinezmarcos93/orquestador-opencode/blob/main/schemas/estado.v1.schema.json",
+  "title": "Estado de una corrida del orquestador",
+  "description": "Contrato v1 del estado de una corrida. Se permiten campos adicionales para compatibilidad hacia delante.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "inicio_utc",
+    "fin_utc",
+    "resultado",
+    "siguiente_accion"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "inicio_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fin_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resultado": {
+      "type": "string",
+      "minLength": 1
+    },
+    "siguiente_accion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string"
+    },
+    "proyecto": {
+      "type": "string"
+    },
+    "agente": {
+      "type": "string"
+    },
+    "ronda": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "run": {
+      "type": "string"
+    },
+    "estado_json": {
+      "type": "string"
+    },
+    "base_ref": {
+      "type": "string"
+    },
+    "base_sha": {
+      "type": "string"
+    },
+    "base_sha_actual_fin": {
+      "type": "string"
+    },
+    "head_sha_inicio": {
+      "type": "string"
+    },
+    "head_sha_fin": {
+      "type": "string"
+    },
+    "base_movida": {
+      "type": "boolean"
+    },
+    "main_intacto": {
+      "type": "boolean"
+    },
+    "reutilizado": {
+      "type": "boolean"
+    },
+    "permitir_entornos_compartidos": {
+      "type": "boolean"
+    },
+    "entornos_enlazados": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "commits": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rc_opencode": {
+      "type": "integer"
+    },
+    "duracion_s": {
+      "type": "number",
+      "minimum": 0
+    },
+    "reporte": {
+      "type": "boolean"
+    },
+    "oraculo_antes": {
+      "type": "boolean"
+    },
+    "oraculo_despues": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "oraculo_despues_omitido": {
+      "type": "string"
+    },
+    "archivos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fuera_de_alcance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "archivos_inmutables": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sin_commitear": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dependencias_tocadas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "errores": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "advertencias": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "errores_estado_schema": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "historial_registrado": {
+      "type": "boolean"
+    },
+    "historial_error": {
+      "type": "string"
+    },
+    "aprobacion": {
+      "type": "string"
+    },
+    "nota": {
+      "type": "string"
+    },
+    "error": {
+      "type": "string"
+    },
+    "uso": {
+      "type": "object",
+      "properties": {
+        "disponible": {
+          "type": "boolean"
+        },
+        "completo": {
+          "type": "boolean"
+        },
+        "pasos": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eventos_con_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lineas_invalidas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "razon_final": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "motivo": {
+          "type": "string"
+        },
+        "entrada": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "salida": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "razonamiento": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cache_lectura": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cache_escritura": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "uso_revision": {
+      "type": "object",
+      "properties": {
+        "disponible": {
+          "type": "boolean"
+        },
+        "completo": {
+          "type": "boolean"
+        },
+        "pasos": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eventos_con_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lineas_invalidas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "razon_final": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "motivo": {
+          "type": "string"
+        },
+        "entrada": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "salida": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "razonamiento": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cache_lectura": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cache_escritura": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "mutacion": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "muertos": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "puntaje": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sobrevivientes": {
+          "type": "array"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "revision": {
+      "type": "object",
+      "properties": {
+        "formato_valido": {
+          "type": "boolean"
+        },
+        "veredicto": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "altas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "medias": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bajas": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "integracion_previa": {
+      "type": "object",
+      "properties": {
+        "estado": {
+          "type": "string",
+          "enum": [
+            "limpia",
+            "conflictos",
+            "error"
+          ]
+        },
+        "conflictos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tree_sha": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "codigo_salida": {
+          "type": "integer"
+        },
+        "base_destino_sha": {
+          "type": "string"
+        },
+        "head_trabajo_sha": {
+          "type": "string"
+        },
+        "detalle": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "presupuesto_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "tokens_entrada_observados": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "presupuesto_agotado": {
+      "type": "boolean"
+    },
+    "presupuesto_no_verificable": {
+      "type": "boolean"
+    },
+    "pasos_observados": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pasos_sin_tokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "espera_rojo": {
+      "type": "boolean"
+    },
+    "depende_de": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "espera_rojo_contiene": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error_lector_jsonl": {
+      "type": "string"
+    },
+    "tokens_entrada_parcial": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "motor": {
+      "type": "string",
+      "enum": [
+        "opencode",
+        "codex"
+      ]
+    },
+    "rc_worker": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true
+}

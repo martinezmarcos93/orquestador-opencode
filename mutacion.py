@@ -14,6 +14,7 @@ import logging
 import os
 import random
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -131,15 +132,31 @@ def aplicar(fuente: str, indice: int, funciones: set[str] | None = None) -> str:
     return ast.unparse(ast.fix_missing_locations(arbol))
 
 
-def _correr(comandos: list[str], cwd: Path, timeout: int) -> bool:
-    """True si TODOS los comandos pasan."""
+def _correr(comandos: list[str], cwd: Path, timeout: int | float, gracia_s: float = 2) -> bool:
+    """True si TODOS los comandos pasan; al timeout termina el grupo y sus descendientes."""
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     for cmd in comandos:
+        proc = subprocess.Popen(
+            cmd, shell=True, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=env, start_new_session=True,
+        )
         try:
-            r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, timeout=timeout, env=env)
+            proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                proc.communicate(timeout=gracia_s)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.communicate()
             return False
-        if r.returncode != 0:
+        if proc.returncode != 0:
             return False
     return True
 

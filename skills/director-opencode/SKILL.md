@@ -10,9 +10,9 @@ Reglas de calibre y de obediencia: `delegacion-opencode` y `_metodologias/claude
 
 ## Trabajadores (agentes de OpenCode, `~/.config/opencode/agents/`)
 - `tester`: solo escribe tests; no puede editar fuera de `tests/`/`test/`.
-- `implementador`: una tarea acotada dentro de los archivos permitidos.
+- `implementador`: una tarea acotada dentro de los archivos permitidos del encargo.
 - `higiene`: limpieza sin cambiar comportamiento; usá `exige_baseline_verde = true` y una base con tests verdes.
-- `revisor`: solo lectura. Se activa con `revisor = true` en el encargo; deja `revision.md` (hallazgos `[ALTA|MEDIA|BAJA]` con evidencia). Tomalo como pista, no como veredicto: verificá cada hallazgo ALTA en el diff.
+- `revisor`: solo lectura. Se activa con `revisor = true` en el encargo; deja `revision.md` con severidad individual (`[ALTA]`, `[MEDIA]` o `[BAJA]`) y evidencia. Tomalo como una señal para investigar, no como veredicto: verificá cada hallazgo ALTA en el diff.
 
 ## Ciclo
 1. **Elegí** proyecto (nivel C o D), trabajador y una tarea chica (los modelos gratuitos se pierden con contexto largo). Si no es git en ext4, se prepara primero un sandbox.
@@ -30,7 +30,7 @@ Reglas de calibre y de obediencia: `delegacion-opencode` y `_metodologias/claude
    timeout_min = 20
    +++
    ```
-   El oráculo corre dentro del worktree, antes y después. El despachador enlaza `.venv`/`node_modules` del repo en el worktree, así que usá rutas **relativas**. Si el encargo menciona la ruta del repo original, el despachador la reescribe por la del worktree; el trabajador nunca puede leer fuera de él (OpenCode desatendido lo rechaza y se detiene).
+   El oráculo corre dentro del worktree, antes y después. Por defecto, el despachador **no** enlaza `.venv` ni `node_modules` del repositorio original; `permitir_entornos_compartidos = true` habilita esos enlaces de forma explícita y reduce el aislamiento. Usá rutas **relativas**. Si el encargo menciona la ruta del repo original, el despachador la reescribe por la del worktree cuando corresponde. **Un worktree no es un sandbox de seguridad**: no garantiza por sí solo que el proceso no pueda leer archivos externos, heredar variables sensibles o acceder a la red. No delegues secretos ni datos de terceros a modelos gratuitos; las tareas sensibles requieren controles de sistema operativo verificados.
 3. **Lanzá** en segundo plano: `python3 ~/src/orquestador-opencode/despachar.py <encargo>` con `run_in_background`. Al terminar te reactivás solo: no hagas polling. `--dry-run` prepara el worktree sin gastar cuota.
 4. **Leé en orden de costo:** JSON de `resultado` → `runs/<proyecto>-<id>/ronda-N/estado.json` → `REPORTE.md` → `git diff --stat` → diff completo. No confíes en el "listo": corré el oráculo vos.
 5. **Decidí** según `resultado`:
@@ -42,6 +42,7 @@ Reglas de calibre y de obediencia: `delegacion-opencode` y `_metodologias/claude
 6. **Bitácora:** anotá qué se delegó, qué se integró y qué se rechazó, con el motivo.
 
 ## Opciones del despachador
+- `--validar`: valida el TOML, los tipos, los patrones de alcance, el repo, la referencia base y los agentes requeridos. No crea worktree, no ejecuta el oráculo y no lanza OpenCode; si `exige_baseline_verde = true`, informa que el baseline se comprobará al despachar. La CLI aplica automáticamente el mismo preflight antes de despachar o revisar. Los encargos de `higiene` requieren `exige_baseline_verde = true`.
 - Varios encargos: `cola.py E1.md E2.md --max 2` (tope 3). Encargos del mismo repo con `permitidos` que se superponen o el mismo `tema` se serializan solos.
 - `--reevaluar`: repite oráculo, alcance, mutación y revisor sobre el trabajo ya hecho, sin lanzar OpenCode ni consumir ronda. Usalo después de commitear a mano algo menor (bitácoras sueltas) o de arreglar un detalle.
 - `[mutacion]` en el encargo: `archivos`, `funciones` (opcional), `umbral` (0.8). Bajo el umbral → `tests_debiles` con la lista de sobrevivientes en `estado.json`.

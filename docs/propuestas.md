@@ -2,7 +2,7 @@
 
 Ideas rescatadas de proyectos similares, convertidas en cambios concretos para este orquestador. Solo ideas: no se copia código ni se instala nada de terceros (varios no tienen licencia, uno es GPL-3.0, y los skills/agentes importados corren con `bash` permitido en modo desatendido).
 
-Estado al 2026-10-13: 64 tests, despachador, cola, mutación, revisor, visor en Herdr. Cada propuesta es un incremento independiente, con tests y prueba en vivo antes del siguiente.
+Estado al 2026-10-17: el último CI run #370 aprobó 158 tests en los incrementos de inmutables, integración, ledger/uso, schema v1, cadena test-first y presupuesto. Se agregó además un backend optativo para Codex CLI sin prompts, con sandbox workspace-write; su aceptación en el equipo anfitrión sigue pendiente.
 
 ## Fuentes revisadas
 
@@ -53,38 +53,37 @@ Un hook `pre-push` opcional ejecuta solo el paso 1.
 
 **Dato verificado.** El stream `--format json` de OpenCode trae tokens por paso (`step-finish.tokens`). Una corrida real: 18 pasos, 155.214 tokens de entrada y 2.986 de salida. La entrada crece a cada paso porque se reenvía el contexto: es el costo que importa.
 
-**Implementación.**
-- `uso.py` con `resumir_stream(lineas) -> {pasos, entrada, salida, razon_final}` (función pura, testeable con un stream de muestra).
-- El despachador lo aplica a `opencode.jsonl` y a `revision.jsonl`, y agrega `uso` al `estado.json`.
-- Un `runs/historial.jsonl` append-only con una línea por corrida: fecha, proyecto, id, ronda, agente, veredicto, duración, tokens, puntaje de mutación, hallazgos altos del revisor.
-- `historial.py` (CLI) para agrupar por agente o por veredicto: qué agentes fallan más, cuántos tokens cuesta cada tipo de tarea.
+**Implementación inicial en `docs/roadmap-hardening` (CI run #370: 158 tests aprobados).**
+- `uso.py` implementa `resumir_stream(lineas)` y `resumir_archivo(ruta)`, suma tokens por evento `step-finish` y no convierte campos/archivos ausentes en cero.
+- El despachador añade resúmenes del stream de OpenCode y del revisor al estado cuando están disponibles.
+- `historial.py` mantiene `runs/historial.jsonl` append-only con bloqueo exclusivo y `fsync`; registra resultado, duración, tokens conocidos, puntaje de mutación, hallazgos altos y referencia al estado, sin guardar prompts ni diffs.
+- `historial.py --por agente|resultado|proyecto` agrupa registros y muestra cuántas corridas aportan datos para cada métrica.
+- `verificar.sh` incluye los módulos y la ayuda CLI en la comprobación básica.
 
-**Aceptación.** Después de una cola de 3 encargos, `historial.py --por agente` muestra veredictos y tokens, y los totales coinciden con la suma de los `estado.json`.
+**Aceptación.** CI verde con fixtures sintéticas; después, una cola real de tres encargos debe cuadrar con sus `estado.json`. Campos ausentes se mantienen como desconocidos.
 
 **Pendiente de verificar.** Si los eventos indican qué modelo respondió. Si no, el nombre real lo sabe LiteLLM (ver propuesta 9).
 
-## 2. `estado.json` v1
+## 2. estado.json v1
 
-**Origen.** El state packet: referencias git, archivos propios y cambiados, comandos con código de salida y log, tests por fase, evidencias, próxima acción.
+**Origen.** El state packet: referencias Git, archivos propios y cambiados, comandos con código de salida y log, tests por fase, evidencias y próxima acción.
 
-**Qué tenemos.** Rama, worktree, archivos, commits, oráculo antes/después (solo booleanos), mutación, revisión.
+**Qué existe.** schema_version = 1, timestamps con zona horaria, siguiente_accion, referencia al propio estado.json, snapshots de HEAD/base, veredicto, alcance, mutación, revisión, vista previa de integración y uso disponible. El ledger también registra un resumen compacto de cada invocación.
 
-**Qué falta, con nombres propios:**
-- `esquema: "estado.v1"`, `base_sha`, `head_sha`, `permitidos` (los archivos propios del encargo).
-- `comandos: [{cmd, codigo_salida, log}]` y `tests: [{fase: "antes"|"despues", ok, log}]`, en vez de booleanos sueltos.
-- `evidencias: [{tipo, ref}]` (reporte, revisión, mutación, logs).
-- **`siguiente_accion`**: hoy la tabla "veredicto → qué hace el director" vive solo en la skill y en el README. Pasarla a código la deja con una única fuente de verdad, y permite que `cola.py` o un futuro proceso nocturno la lea sin un LLM.
-- `inicio` y `fin` en formato ISO.
+**Qué sigue faltando.** No se registran todavía todos los comandos/tests como eventos estructurados con sus logs y referencias de evidencia normalizadas. Tampoco se ha validado una corrida real de OpenCode con el estado producido.
 
-**Implementación.** Una función pura `armar_estado(...)`, un `schemas/estado.v1.schema.json` propio y un validador mínimo con la librería estándar. Los campos actuales se conservan (no rompe nada).
+**Implementación actual.** schemas/estado.v1.schema.json describe los campos principales de Git, resultados, uso, mutación, revisión e integración. validar_estado_v1 valida el estado contra las propiedades declaradas: tipos, const, enum, rangos, longitud, patrones, fechas con zona horaria, campos requeridos y arrays/objetos anidados. Rechaza booleanos en campos enteros. Se permiten propiedades adicionales por compatibilidad. Es un validador del subconjunto utilizado por el esquema, no un motor JSON Schema completo.
 
-**Aceptación.** Todo `estado.json` generado valida contra el esquema; un test recorre cada veredicto posible y comprueba que tenga `siguiente_accion`.
+**Validación.** GitHub Actions run #298 aprobó 141 tests, incluidos casos de restricciones anidadas, tipos y compatibilidad hacia delante.
+
+**Aceptación pendiente.** Cubrir retornos tempranos y cada veredicto con estados persistidos; validar un estado.json producido por una corrida real; decidir si la complejidad justifica adoptar una implementación completa de JSON Schema.
+
 
 ## 3. Archivos `inmutables`
 
 **Problema.** "No aflojar asserts" y "no tocar los tests" hoy son una instrucción en el prompt, que un modelo gratuito puede ignorar.
 
-**Implementación.** Un campo opcional `inmutables = ["tests/**"]` en el encargo. El despachador compara esos archivos contra la base: cualquier cambio da el veredicto `viola_inmutables`, igual que `fuera_de_alcance`. Es una variante de `fuera_de_alcance` que ya existe (`fuera_de_alcance()` con otra lista), así que son unas 20 líneas.
+**Implementación.** Un campo opcional `inmutables = ["tests/**"]` en el encargo. El despachador compara rutas modificadas contra la base y bloquea con `viola_inmutables`; se usa `git diff --no-renames` para detectar ambos extremos de un movimiento. Los patrones se validan como rutas relativas sin traversal. Implementado y cubierto en CI run #264: tests sintéticos verifican modificación por patrones, borrado, renombre, traversal y bloqueo del veredicto. Pendiente probar el ciclo completo con un worker real.
 
 **Aceptación.** Un `implementador` que modifica un test existente queda rechazado sin leer el diff.
 
@@ -92,41 +91,52 @@ Un hook `pre-push` opcional ejecuta solo el paso 1.
 
 **Problema.** Los tres primeros intentos de la práctica fallaron por errores del encargo (ruta fuera del worktree, `.venv` inexistente), no del modelo.
 
-**Implementación.** `despachar.py --validar ENCARGO.md`, que también corre antes de cada despacho. Comprueba:
-- `permitidos` no vacío y sin `**` en la raíz; `oraculo` presente y su primer comando ejecutable en el repo.
-- `base` existe; el agente existe en `~/.config/opencode/agents/`.
-- El cuerpo no menciona rutas absolutas ajenas al repo (OpenCode desatendido las rechaza).
-- Tamaño del cuerpo bajo un tope (los modelos gratuitos se pierden con contexto largo).
-- Si `agente = "higiene"`, exige `exige_baseline_verde`.
+**Implementación inicial en la rama de hardening.** `python3 despachar.py ENCARGO.md --validar` comprueba manualmente y la CLI aplica el mismo preflight automáticamente antes de despachar/revisar. Comprueba:
+- Tipos y presencia de campos, lista de patrones permitidos relativos sin traversal, lista de comandos de oráculo no vacía, detección de rutas absolutas externas al repo en el cuerpo y ejecutable inicial cuando puede inferirse. Los comandos complejos de shell generan advertencia.
+- Rutas de mutación relativas, umbral de mutación entre 0 y 1 y máximo positivo de mutantes.
+- Existencia del repositorio Git, resolución de la referencia base y agente instalado en `~/.config/opencode/agents/`.
+- Límite total de 30.000 caracteres.
+- No crea worktrees, no ejecuta comandos del oráculo y no lanza OpenCode. Si `exige_baseline_verde = true`, informa que la comprobación ocurre durante el despacho.
 
-**Aceptación.** Cada error de la práctica tiene un test que el validador atrapa.
+**Pendiente para completar P4.** Probar encargos históricos representativos y validar con la instalación real; el preflight no puede demostrar la ejecutabilidad de cada etapa dentro de un pipeline o expansión compleja de shell.
+
+**Aceptación.** Cada error de la práctica tiene un test que el validador atrapa; ningún encargo inválido lanza OpenCode.
 
 ## 5. Encadenar encargos y ciclo tests → implementar
 
-**Origen.** El planner/ejecutor de `director-cli` (tests de aceptación primero, luego implementación).
+**Origen.** El planner/ejecutor de director-cli: tests de aceptación primero, luego implementación.
 
-**Idea.** El `tester` escribe tests que fallan por la razón correcta; esos tests son el oráculo del `implementador`, que no puede tocarlos (propuesta 3).
+**Idea.** El tester escribe tests que fallan por la razón esperada; esos tests son el oráculo del implementador, que no puede modificarlos.
 
-**Implementación.**
-- Campo `depende_de = ["001"]`: `cola.py` ordena por dependencia y fija la `base` del encargo B a la rama del A. Ya existe `base` configurable, así que es planificación.
-- Un encargo B con `inmutables = ["tests/**"]` y `permitidos = ["src/**"]`.
-- Un campo `espera_rojo = true` en A: el oráculo "antes" debe fallar (tests nuevos) y "después" debe fallar solo en los tests nuevos, para no aceptar tests que ya pasan sin código.
+**Implementación inicial en docs/roadmap-hardening (CI run #370: 158 tests aprobados).**
+- Campo depende_de = ["001"]: cola.py valida que la dependencia esté en el lote y en el mismo proyecto/repositorio, rechaza ciclos y limita cada tarea a una sola rama predecesora. Espera a que el predecesor esté aprobado y crea una copia temporal del encargo B con base apuntando a la rama A; no modifica el archivo original.
+- El encargo B puede declarar inmutables = ["tests/**"] y permitidos = ["src/**"].
+- En A, espera_rojo = true exige agente tester, alcance de tests y espera_rojo_contiene con marcadores literales. El oráculo antes debe pasar; el oráculo después debe fallar y contener todos los marcadores. Si cumple, el resultado intermedio es tests_preparados. Si los tests pasan o el fallo no tiene la evidencia declarada, la etapa no se acepta.
+- cola.py reconoce tests_preparados como resultado intermedio y continúa con la tarea dependiente.
 
-**Aceptación.** Ejemplo real en el sandbox: el `tester` escribe tests de una función nueva, el `implementador` la escribe, y el oráculo pasa sin que el segundo haya modificado un test.
+**Aceptación pendiente.** Ejemplo real en sandbox: tester crea tests de una función nueva, implementador los satisface, el oráculo final pasa y los tests permanecen inmutables. Dependencias múltiples todavía no están soportadas.
+
 
 ## 6. Presupuesto de tokens con corte en vivo
 
-**Hueco real.** Hoy el único límite es `timeout_min`.
+**Hueco real.** El timeout por duración no limita el consumo de tokens; una tarea puede agotar la cuota antes de llegar al timeout.
 
-**Implementación.** Campo `presupuesto_tokens = 400000` (entrada). El despachador deja de redirigir stdout a un archivo y lo lee en vivo con `Popen`, sumando `step-finish.tokens`; si se supera, termina el proceso y da el veredicto `presupuesto_agotado` (el trabajo hecho hasta ahí se conserva para evaluarlo). Con la propuesta 1, el presupuesto por defecto sale del historial (percentil 90 de tareas similares).
+**Implementación inicial en docs/roadmap-hardening (CI run #370: 158 tests aprobados).**
+- Campo opcional presupuesto_tokens, entero positivo, mide tokens de entrada.
+- Cuando está configurado, el despachador lee stdout JSONL en vivo, persiste cada línea y suma input en eventos step-finish.
+- Al alcanzar el límite, termina el grupo de procesos, conserva el stream parcial y emite presupuesto_agotado.
+- Si faltan eventos/campos para verificar el consumo, detiene el worker y emite presupuesto_no_verificable; no trata datos ausentes como cero.
+- El estado distingue tokens_entrada_observados de tokens_entrada_parcial y guarda el presupuesto configurado. El historial incluye presupuesto y resultado.
+- El timeout por duración sigue vigente; si no se configura presupuesto, se conserva el camino de ejecución previo.
 
-**Aceptación.** Un trabajador de prueba con presupuesto bajo se corta con el veredicto correcto y el estado queda consistente.
+**Aceptación pendiente.** El CI run #370 aprobó 158 tests sin ResourceWarning/fugas, incluidos corte sintético, stream incompleto y timeout. Falta verificar que el formato de eventos de la versión instalada de OpenCode/LiteLLM expone los tokens esperados y probar el límite en una corrida real.
+
 
 ## 7. Vista previa de integración
 
 **Origen.** Disciplina de "merge-conflict safety" de `dirigent-skills`, sin el agente que mergea.
 
-**Implementación.** Al terminar con `pasa`, `git merge-tree --write-tree base rama` (solo lectura) y se guarda `integracion: {conflictos: [archivos]}` en el estado. El merge sigue siendo tuyo; llegás sabiendo si va a chocar. En la práctica real los tres `REPORTE.md` chocaron: esto lo habría avisado.
+**Implementación.** Al terminar con `pasa`, `git merge-tree --write-tree <base_sha_actual> <head_sha_trabajo>` (solo lectura) registra `integracion_previa` con estado `limpia`, `conflictos` o `error`, hashes de entrada y diagnóstico. Si detecta conflictos, `siguiente_accion` pide resolverlos antes de integrar. El merge sigue siendo humano; la vista previa no modifica refs ni worktrees. Implementado y cubierto en CI run #264: tests sintéticos verifican integración limpia, conflicto reproducible y que HEAD/worktree de destino no cambian. Pendiente probar el flujo completo con una entrega real.
 
 ## 8. Cola nocturna con systemd
 
@@ -135,6 +145,25 @@ Un hook `pre-push` opcional ejecuta solo el paso 1.
 **Implementación.** `cola.py --carpeta _encargos/<proyecto>/pendientes --hasta-cuota` mueve cada encargo a `en-curso/` y después a `listos/` o `fallidos/`, y se detiene sola con la regla de corte por fallos de infraestructura que ya existe. Un servicio de usuario con timer (systemd, como pide tu convención) la dispara de noche. Al despertar, Claude lee `historial.jsonl` y `siguiente_accion` de cada encargo y revisa en lote.
 
 **Depende de** 1 y 6, para no gastar la cuota de golpe y saber qué pasó.
+
+## 8. Codex CLI sin prompts interactivos
+
+**Problema.** Los workers Codex pueden detenerse repetidamente esperando aprobación para leer/editar archivos dentro de su worktree. Las aprobaciones manuales vuelven al humano un operador de cada llamada.
+
+**Implementación inicial en docs/roadmap-hardening.** La configuración optativa motor = "codex" ejecuta:
+
+codex exec --approve-for-me --json -
+
+El despachador pasa las instrucciones del rol local por stdin, aplica timeout y captura JSONL/stderr. Configura sandbox_workspace_write.writable_roots=[] y network_access=false. Codex realiza su propia revisión automática de solicitudes dentro de workspace-write; no es Claude quien aprueba cada solicitud. Si una operación queda fuera del sandbox, debe fallar cerrada. El backend predeterminado sigue siendo OpenCode.
+
+**Límites explícitos.**
+- Esta política solo aplica a las corridas de Codex lanzadas por el despachador; no controla una sesión abierta manualmente en Codex Desktop/IDE.
+- No convierte a Claude en aprobador directo de cada solicitud: el no-prompt se resuelve mediante la revisión automática de Codex y el sandbox. Un futuro mecanismo de excepciones realmente dirigido por Claude tendría que usar una API de autorización explícita y una política auditable.
+- El parser y presupuesto de tokens de OpenCode no se aplican a Codex; la combinación se rechaza en preflight hasta validar el stream de uso de Codex.
+- No se ha confirmado en el equipo anfitrión que las operaciones Git necesarias para un worktree funcionen bajo la sandbox de Codex.
+
+**Aceptación pendiente.** Con Codex CLI instalado, ejecutar una tarea de prueba en worktree, confirmar que puede editar y ejecutar tests sin prompts, verificar que no escribe fuera del worktree y comprobar que una operación bloqueada no provoca un prompt ni deja procesos huérfanos.
+
 
 ## 9. Cooldown de modelos fallidos
 
@@ -146,7 +175,7 @@ Un hook `pre-push` opcional ejecuta solo el paso 1.
 
 ## ¿Hace falta una flota de skills para mantener esto funcionando?
 
-**No.** Lo que mantiene el proyecto en pie son el código y los tests (64, corren en 5 s), y las instrucciones de cada trabajador (`agents/*.md`). Los bugs reales de esta etapa los encontraron el oráculo y el uso real, no la falta de un skill.
+**No.** Lo que mantiene el proyecto en pie son el código y los tests (158 aprobados en CI run #370), y las instrucciones de cada trabajador (`agents/*.md`). Los bugs reales de esta etapa los encontraron el oráculo y el uso real, no la falta de un skill.
 
 Un skill es un documento que el modelo carga en su contexto. Cada uno que se suma cuesta contexto y es otro texto que puede ser ambiguo, quedar desactualizado o (si viene de terceros) llevar instrucciones ajenas con acceso a una shell.
 
